@@ -90,34 +90,6 @@ services:
     volumes:
       - ./storage/cassandra/schema/schema.cql:/schema.cql
 
-  # ===== Monitoring Services =====
-  prometheus:
-    image: prom/prometheus:v2.45.0
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./monitoring/prometheus/rules:/etc/prometheus/rules
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-
-  grafana:
-    image: grafana/grafana:10.0.0
-    container_name: grafana
-    ports:
-      - "3000:3000"
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
-    volumes:
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
-    depends_on:
-      - prometheus
-
   # ===== Application Services =====
   kafka-producer:
     build:
@@ -142,6 +114,26 @@ services:
       KAFKA_TOPIC: metrics-data
       KAFKA_GROUP_ID: metrics-consumer-group
 
+  # ===== API Gateway =====
+  api-gateway:
+    build:
+      context: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: 8080
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9093
+    depends_on:
+      - kafka
+      - kafka-setup
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
+      interval: 20s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   # ===== Frontend Service =====
   frontend:
     build:
@@ -152,5 +144,10 @@ services:
     environment:
       REACT_APP_WEBSOCKET_URL: ws://localhost:8080/ws
     depends_on:
-      - kafka-producer
-      - kafka-consumer
+      - api-gateway
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost/health || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

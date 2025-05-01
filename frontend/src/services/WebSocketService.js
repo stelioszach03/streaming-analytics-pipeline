@@ -1,10 +1,10 @@
 import SockJS from 'sockjs-client';
-import { Stomp } from 'stompjs';
+import { Client } from '@stomp/stompjs';
 
 class WebSocketService {
   constructor(serverUrl) {
     this.serverUrl = serverUrl;
-    this.stompClient = null;
+    this.client = null;
     this.subscriptions = {};
     this.connected = false;
     this.reconnectInterval = null;
@@ -14,17 +14,16 @@ class WebSocketService {
   }
 
   connect(callbacks = {}) {
+    // Create a socket and STOMP client
     const socket = new SockJS(this.serverUrl);
-    this.stompClient = Stomp.over(socket);
     
-    // Disable debug logging in production
-    if (process.env.NODE_ENV === 'production') {
-      this.stompClient.debug = null;
-    }
-    
-    this.stompClient.connect(
-      {}, // headers
-      () => {
+    this.client = new Client({
+      webSocketFactory: () => socket,
+      debug: process.env.NODE_ENV !== 'production' ? console.log : () => {},
+      reconnectDelay: 5000,
+      heartbeatIncoming: 4000,
+      heartbeatOutgoing: 4000,
+      onConnect: () => {
         this.connected = true;
         this.reconnectAttempts = 0;
         
@@ -42,7 +41,7 @@ class WebSocketService {
           callbacks.onConnect();
         }
       },
-      (error) => {
+      onStompError: (error) => {
         this.connected = false;
         
         if (callbacks.onError) {
@@ -52,7 +51,9 @@ class WebSocketService {
         // Attempt to reconnect
         this._reconnect(callbacks);
       }
-    );
+    });
+    
+    this.client.activate();
   }
   
   _reconnect(callbacks) {
@@ -74,8 +75,8 @@ class WebSocketService {
   }
   
   disconnect() {
-    if (this.stompClient && this.connected) {
-      this.stompClient.disconnect();
+    if (this.client) {
+      this.client.deactivate();
       this.connected = false;
       this.subscriptions = {};
       
@@ -90,12 +91,12 @@ class WebSocketService {
     this.subscriptions[topic] = callback;
     
     if (this.connected) {
-      this._subscribe(topic, callback);
+      return this._subscribe(topic, callback);
     }
   }
   
   _subscribe(topic, callback) {
-    return this.stompClient.subscribe(topic, callback);
+    return this.client.subscribe(topic, callback);
   }
   
   unsubscribe(topic) {
@@ -106,7 +107,10 @@ class WebSocketService {
   
   send(destination, body) {
     if (this.connected) {
-      this.stompClient.send(destination, {}, JSON.stringify(body));
+      this.client.publish({
+        destination: destination,
+        body: JSON.stringify(body)
+      });
     } else {
       console.error('Cannot send message: WebSocket not connected');
     }

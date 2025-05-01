@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streaming Analytics Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f7fa;
+        }
+        .app {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .app-header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .connection-status {
+            display: flex;
+            align-items: center;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .connected {
+            background-color: #2ecc71;
+        }
+        .disconnected {
+            background-color: #e74c3c;
+        }
+        .app-content {
+            flex: 1;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .dashboard-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            padding: 1rem;
+        }
+        .app-footer {
+            background-color: #2c3e50;
+            color: white;
+            text-align: center;
+            padding: 1rem;
+        }
+        #metrics-container {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <header class="app-header">
+            <h1>Streaming Analytics Dashboard</h1>
+            <div class="connection-status">
+                <span class="status-indicator" id="connection-indicator"></span>
+                <span id="connection-text">Connecting...</span>
+            </div>
+        </header>
+        
+        <main class="app-content">
+            <h2>Real-Time Service Metrics</h2>
+            <div id="metrics-container" class="dashboard-grid">
+                <!-- Metrics will be displayed here -->
+                <div class="dashboard-card">
+                    <h3>Loading metrics...</h3>
+                    <p>Connecting to API Gateway</p>
+                </div>
+            </div>
+            
+            <h2>Recent Anomalies</h2>
+            <div id="anomalies-container">
+                <!-- Anomalies will be displayed here -->
+                <p>Loading anomaly data...</p>
+            </div>
+        </main>
+        
+        <footer class="app-footer">
+            <p>Streaming Analytics Dashboard v1.0.0</p>
+        </footer>
+    </div>
+
+    <script>
+        // Connect to WebSocket
+        const wsUrl = 'ws://localhost:8080/ws';
+        let socket;
+        let connectAttempts = 0;
+        const maxConnectAttempts = 5;
+        
+        function connectWebSocket() {
+            socket = new WebSocket(wsUrl);
+            
+            socket.onopen = function() {
+                console.log('WebSocket connected');
+                document.getElementById('connection-indicator').className = 'status-indicator connected';
+                document.getElementById('connection-text').textContent = 'Connected';
+                
+                // Subscribe to topics
+                socket.send(JSON.stringify({
+                    type: 'SUBSCRIBE',
+                    destination: '/topic/metrics'
+                }));
+                
+                socket.send(JSON.stringify({
+                    type: 'SUBSCRIBE',
+                    destination: '/topic/anomalies'
+                }));
+                
+                socket.send(JSON.stringify({
+                    type: 'SUBSCRIBE',
+                    destination: '/topic/service-health'
+                }));
+            };
+            
+            socket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.destination === '/topic/metrics') {
+                    updateMetrics(JSON.parse(data.body));
+                } else if (data.destination === '/topic/anomalies') {
+                    updateAnomalies(JSON.parse(data.body));
+                }
+            };
+            
+            socket.onclose = function() {
+                document.getElementById('connection-indicator').className = 'status-indicator disconnected';
+                document.getElementById('connection-text').textContent = 'Disconnected';
+                
+                // Try to reconnect
+                connectAttempts++;
+                if (connectAttempts < maxConnectAttempts) {
+                    setTimeout(connectWebSocket, 3000);
+                }
+            };
+            
+            socket.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+        }
+        
+        // Update metrics display
+        const metrics = {};
+        
+        function updateMetrics(metricData) {
+            const metricKey = `${metricData.service}-${metricData.metric}`;
+            metrics[metricKey] = metricData;
+            
+            renderMetrics();
+        }
+        
+        function renderMetrics() {
+            const container = document.getElementById('metrics-container');
+            container.innerHTML = '';
+            
+            for (const key in metrics) {
+                const metric = metrics[key];
+                const card = document.createElement('div');
+                card.className = 'dashboard-card';
+                
+                let unit = '';
+                if (metric.metric === 'cpu_usage' || metric.metric === 'memory_usage') {
+                    unit = '%';
+                } else if (metric.metric === 'response_time') {
+                    unit = 'ms';
+                }
+                
+                card.innerHTML = `
+                    <h3>${metric.service}</h3>
+                    <p>${metric.metric.replace('_', ' ')}: <strong>${metric.value.toFixed(2)}${unit}</strong></p>
+                    <p>Host: ${metric.host}</p>
+                    <p>Region: ${metric.region}</p>
+                    <p>Updated: ${new Date(metric.timestamp).toLocaleTimeString()}</p>
+                `;
+                
+                container.appendChild(card);
+            }
+            
+            if (Object.keys(metrics).length === 0) {
+                container.innerHTML = `
+                    <div class="dashboard-card">
+                        <h3>No metrics available</h3>
+                        <p>Waiting for data...</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Update anomalies display
+        const anomalies = [];
+        
+        function updateAnomalies(anomalyData) {
+            anomalies.unshift(anomalyData);
+            if (anomalies.length > 10) {
+                anomalies.pop();
+            }
+            
+            renderAnomalies();
+        }
+        
+        function renderAnomalies() {
+            const container = document.getElementById('anomalies-container');
+            
+            if (anomalies.length === 0) {
+                container.innerHTML = '<p>No anomalies detected</p>';
+                return;
+            }
+            
+            let html = '<table style="width:100%; border-collapse: collapse;">';
+            html += '<tr style="background-color: #f2f2f2;"><th style="padding: 8px; text-align: left;">Service</th><th style="padding: 8px; text-align: left;">Metric</th><th style="padding: 8px; text-align: left;">Value</th><th style="padding: 8px; text-align: left;">Time</th><th style="padding: 8px; text-align: left;">Severity</th></tr>';
+            
+            anomalies.forEach(anomaly => {
+                let unit = '';
+                if (anomaly.metric === 'cpu_usage' || anomaly.metric === 'memory_usage') {
+                    unit = '%';
+                } else if (anomaly.metric === 'response_time') {
+                    unit = 'ms';
+                }
+                
+                html += `
+                    <tr style="border-bottom: 1px solid #ddd;">
+                        <td style="padding: 8px;">${anomaly.service}</td>
+                        <td style="padding: 8px;">${anomaly.metric.replace('_', ' ')}</td>
+                        <td style="padding: 8px;">${anomaly.value.toFixed(2)}${unit}</td>
+                        <td style="padding: 8px;">${new Date(anomaly.timestamp).toLocaleTimeString()}</td>
+                        <td style="padding: 8px;">${anomaly.severity || 'high'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</table>';
+            container.innerHTML = html;
+        }
+        
+        // Initialize
+        connectWebSocket();
+        renderMetrics();
+        renderAnomalies();
+    </script>
+</body>
+</html>
