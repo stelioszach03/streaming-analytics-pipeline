@@ -19,6 +19,8 @@ function App() {
   useEffect(() => {
     // Initialize WebSocket connection
     const webSocketUrl = process.env.REACT_APP_WEBSOCKET_URL || 'ws://localhost:8080/ws';
+    console.log('Connecting to WebSocket at:', webSocketUrl);
+    
     const webSocketService = new WebSocketService(webSocketUrl);
     
     webSocketService.connect({
@@ -28,32 +30,50 @@ function App() {
         
         // Subscribe to metrics topic
         webSocketService.subscribe('/topic/metrics', (message) => {
-          const data = JSON.parse(message.body);
-          setMetricsData(prevData => ({
-            ...prevData,
-            metrics: updateMetrics(prevData.metrics, data)
-          }));
+          try {
+            const data = JSON.parse(message.body);
+            console.log('Received metric:', data);
+            
+            setMetricsData(prevData => ({
+              ...prevData,
+              metrics: updateMetrics(prevData.metrics, data)
+            }));
+          } catch (error) {
+            console.error('Error parsing metrics message:', error);
+          }
         });
         
         // Subscribe to anomalies topic
         webSocketService.subscribe('/topic/anomalies', (message) => {
-          const anomaly = JSON.parse(message.body);
-          setMetricsData(prevData => ({
-            ...prevData,
-            anomalies: [anomaly, ...prevData.anomalies].slice(0, 100) // Keep only the latest 100 anomalies
-          }));
+          try {
+            const anomaly = JSON.parse(message.body);
+            console.log('Received anomaly:', anomaly);
+            
+            setMetricsData(prevData => ({
+              ...prevData,
+              anomalies: [anomaly, ...prevData.anomalies].slice(0, 100) // Keep only the latest 100 anomalies
+            }));
+          } catch (error) {
+            console.error('Error parsing anomaly message:', error);
+          }
         });
         
         // Subscribe to service health topic
         webSocketService.subscribe('/topic/service-health', (message) => {
-          const healthData = JSON.parse(message.body);
-          setMetricsData(prevData => ({
-            ...prevData,
-            serviceHealth: {
-              ...prevData.serviceHealth,
-              [healthData.service]: healthData
-            }
-          }));
+          try {
+            const healthData = JSON.parse(message.body);
+            console.log('Received service health:', healthData);
+            
+            setMetricsData(prevData => ({
+              ...prevData,
+              serviceHealth: {
+                ...prevData.serviceHealth,
+                [healthData.service]: healthData
+              }
+            }));
+          } catch (error) {
+            console.error('Error parsing service health message:', error);
+          }
         });
       },
       
@@ -70,13 +90,13 @@ function App() {
     
     // Cleanup on unmount
     return () => {
+      console.log('Disconnecting WebSocket');
       webSocketService.disconnect();
     };
   }, []);
 
   // Function to update metrics with new data
   const updateMetrics = (currentMetrics, newMetricData) => {
-    const metricKey = `${newMetricData.service}-${newMetricData.metric}`;
     const existingMetricIndex = currentMetrics.findIndex(m => 
       m.service === newMetricData.service && m.metric === newMetricData.metric
     );

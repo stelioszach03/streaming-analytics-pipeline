@@ -1,16 +1,17 @@
 {
-    "name": "api-gateway",
-    "version": "1.0.0",
-    "description": "API Gateway for Streaming Analytics Dashboard",
-    "main": "server.js",
-    "scripts": {
-      "start": "node server.js"
-    },
-    "dependencies": {
-      "express": "^4.17.1",
-      "ws": "^8.5.0",
-      "kafka-node": "^5.0.0",
-      "cors": "^2.8.5",
-      "body-parser": "^1.19.0"
-    }
+  "name": "api-gateway",
+  "version": "1.0.0",
+  "description": "API Gateway for Streaming Analytics Dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.19.0",
+    "cors": "^2.8.5",
+    "express": "^4.17.1",
+    "kafka-node": "^5.0.0",
+    "uuid": "^8.3.2",
+    "ws": "^8.5.0"
   }
+}
