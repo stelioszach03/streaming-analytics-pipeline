@@ -1,0 +1,270 @@
+/* App.css */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  background-color: #f5f7fa;
+  color: #333;
+  line-height: 1.6;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-header {
+  background-color: #2c3e50;
+  color: white;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.app-header h1 {
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+}
+
+.status-indicator {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.status-indicator.connected {
+  background-color: #2ecc71;
+  box-shadow: 0 0 4px #2ecc71;
+}
+
+.status-indicator.disconnected {
+  background-color: #e74c3c;
+  box-shadow: 0 0 4px #e74c3c;
+}
+
+.app-nav {
+  background-color: #34495e;
+  padding: 0.5rem 2rem;
+}
+
+.app-nav ul {
+  list-style: none;
+  display: flex;
+}
+
+.app-nav li {
+  margin-right: 2rem;
+}
+
+.app-nav a {
+  color: #ecf0f1;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.5rem 0;
+  display: block;
+  border-bottom: 2px solid transparent;
+  transition: border-color 0.3s;
+}
+
+.app-nav a:hover,
+.app-nav a.active {
+  border-color: #3498db;
+}
+
+.app-content {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.app-footer {
+  background-color: #2c3e50;
+  color: #ecf0f1;
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.8rem;
+}
+
+/* Dashboard Components */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.dashboard-card {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.dashboard-card-title {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.dashboard-card-value {
+  font-size: 2rem;
+  font-weight: 600;
+  margin: 0.5rem 0;
+}
+
+.chart-container {
+  flex: 1;
+  min-height: 200px;
+}
+
+.metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.metrics-table th,
+.metrics-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #ecf0f1;
+}
+
+.metrics-table th {
+  background-color: #f8f9fa;
+  font-weight: 500;
+  color: #7f8c8d;
+}
+
+.metrics-table tr:hover {
+  background-color: #f5f7fa;
+}
+
+.anomaly-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.anomaly-badge.high {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.anomaly-badge.medium {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.anomaly-badge.low {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.health-status {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.health-status.healthy {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.health-status.warning {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.health-status.critical {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.settings-form {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  text-align: center;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.1s;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn-primary {
+  background-color: #3498db;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #2980b9;
+}
+
+.btn-danger {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: #c0392b;
+}

@@ -1,0 +1,32 @@
+topics:
+  - name: metrics-data
+    partitions: 6
+    replication-factor: 3
+    configs:
+      retention.ms: 604800000      # 7 days
+      segment.bytes: 1073741824    # 1 GB
+      cleanup.policy: delete
+  
+  - name: processed-metrics
+    partitions: 6
+    replication-factor: 3
+    configs:
+      retention.ms: 1209600000     # 14 days
+      segment.bytes: 1073741824    # 1 GB
+      cleanup.policy: compact,delete
+  
+  - name: alerts
+    partitions: 3
+    replication-factor: 3
+    configs:
+      retention.ms: 2592000000     # 30 days
+      segment.bytes: 536870912     # 512 MB
+      cleanup.policy: delete
+
+  - name: service-health
+    partitions: 3
+    replication-factor: 3
+    configs:
+      retention.ms: 604800000      # 7 days
+      segment.bytes: 536870912     # 512 MB
+      cleanup.policy: compact

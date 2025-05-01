@@ -1,0 +1,36 @@
+apiVersion: v2
+name: streaming-analytics
+description: A Helm chart for deploying a complete real-time streaming analytics pipeline
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - kafka
+  - flink
+  - cassandra
+  - prometheus
+  - streaming
+  - analytics
+home: https://github.com/your-org/streaming-analytics-pipeline
+sources:
+  - https://github.com/your-org/streaming-analytics-pipeline
+maintainers:
+  - name: Your Name
+    email: your.email@example.com
+dependencies:
+  - name: kafka
+    version: ^19.0.0
+    repository: https://charts.bitnami.com/bitnami
+    condition: kafka.enabled
+  - name: cassandra
+    version: ^9.0.0
+    repository: https://charts.bitnami.com/bitnami
+    condition: cassandra.enabled
+  - name: prometheus
+    version: ^19.0.0
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: monitoring.prometheus.enabled
+  - name: grafana
+    version: ^6.0.0
+    repository: https://grafana.github.io/helm-charts
+    condition: monitoring.grafana.enabled
