@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply h-full;
+  }
+  body {
+    @apply h-full antialiased;
+  }
+  #root {
+    @apply h-full;
+  }
+}
+
+@layer components {
+  /* Card Components */
+  .metric-card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden transition-all duration-200 hover:shadow-md;
+  }
+  
+  .metric-card-header {
+    @apply flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50;
+  }
+  
+  .metric-card-title {
+    @apply text-sm font-medium text-gray-700;
+  }
+  
+  .metric-card-body {
+    @apply p-4;
+  }
+  
+  .metric-value {
+    @apply text-2xl font-semibold text-gray-900;
+  }
+  
+  /* Status Indicators */
+  .status-healthy {
+    @apply bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium;
+  }
+  
+  .status-warning {
+    @apply bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium;
+  }
+  
+  .status-critical {
+    @apply bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium;
+  }
+  
+  /* Form Elements */
+  .form-label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+  }
+  
+  .form-input {
+    @apply mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm;
+  }
+  
+  .form-select {
+    @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm;
+  }
+  
+  .form-checkbox {
+    @apply h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500;
+  }
+  
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center rounded-md border border-transparent px-4 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+  
+  .btn-primary {
+    @apply bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-gray-700 border-gray-300 hover:bg-gray-50 focus:ring-blue-500;
+  }
+  
+  .btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  }
+  
+  /* Tables */
+  .data-table {
+    @apply min-w-full divide-y divide-gray-300;
+  }
+  
+  .data-table thead {
+    @apply bg-gray-50;
+  }
+  
+  .data-table th {
+    @apply py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900;
+  }
+  
+  .data-table tbody {
+    @apply divide-y divide-gray-200 bg-white;
+  }
+  
+  .data-table td {
+    @apply whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-500;
+  }
+  
+  /* Loading States */
+  .loading-pulse {
+    @apply animate-pulse bg-gray-200 rounded;
+  }
+  
+  /* Chart container */
+  .chart-container {
+    @apply h-60 w-full;
+  }
+}

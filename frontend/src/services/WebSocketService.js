@@ -1,6 +1,3 @@
-import SockJS from 'sockjs-client';
-import Stomp from '@stomp/stompjs';
-
 class WebSocketService {
   constructor(serverUrl) {
     this.serverUrl = serverUrl;
@@ -16,7 +13,7 @@ class WebSocketService {
   connect(callbacks = {}) {
     console.log(`Attempting to connect to WebSocket at ${this.serverUrl}`);
     
-    // Create a simple WebSocket connection (not using SockJS)
+    // Create a simple WebSocket connection (native WebSocket)
     const socket = new WebSocket(this.serverUrl);
     
     socket.onopen = () => {
