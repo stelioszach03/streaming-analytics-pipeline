@@ -4,7 +4,7 @@ const http = require('http');
 const WebSocket = require('ws');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const path = require('path');
+const { Kafka } = require('kafkajs');
 const { v4: uuidv4 } = require('uuid');
 
 // Express app setup
@@ -21,14 +21,110 @@ const wss = new WebSocket.Server({ server, path: '/ws' });
 // Track connected clients
 const clients = new Set();
 
-// Sample data for demo
-const services = ['api-gateway', 'auth-service', 'payment-service', 'user-service', 'order-service'];
-const metrics = ['cpu_usage', 'memory_usage', 'response_time', 'error_count', 'request_count'];
-
 // Store latest metrics for REST API
-let latestMetrics = [];
-let latestAnomalies = [];
-let serviceHealth = {};
+const latestMetrics = [];
+const latestAnomalies = [];
+const serviceHealth = {};
+
+// Kafka setup
+const kafka = new Kafka({
+  clientId: 'api-gateway',
+  brokers: [process.env.KAFKA_BOOTSTRAP_SERVERS || 'kafka:9093']
+});
+
+// Create Kafka consumers
+const metricsConsumer = kafka.consumer({ groupId: 'metrics-gateway-group' });
+const anomaliesConsumer = kafka.consumer({ groupId: 'anomalies-gateway-group' });
+const serviceHealthConsumer = kafka.consumer({ groupId: 'service-health-gateway-group' });
+
+// Connect Kafka consumers
+async function connectConsumers() {
+  try {
+    // Connect metrics consumer
+    await metricsConsumer.connect();
+    await metricsConsumer.subscribe({ topic: 'metrics-data', fromBeginning: false });
+    
+    // Connect anomalies consumer
+    await anomaliesConsumer.connect();
+    await anomaliesConsumer.subscribe({ topic: 'alerts', fromBeginning: false });
+    
+    // Connect service health consumer
+    await serviceHealthConsumer.connect();
+    await serviceHealthConsumer.subscribe({ topic: 'service-health', fromBeginning: false });
+    
+    console.log('Kafka consumers connected successfully');
+    
+    // Start consuming
+    await startConsuming();
+  } catch (error) {
+    console.error('Error connecting Kafka consumers:', error);
+  }
+}
+
+// Start Kafka consumption
+async function startConsuming() {
+  // Metrics consumer
+  await metricsConsumer.run({
+    eachMessage: async ({ topic, partition, message }) => {
+      try {
+        const metricData = JSON.parse(message.value.toString());
+        console.log('Received metric:', metricData);
+        
+        // Store latest metric and limit array size
+        latestMetrics.push(metricData);
+        if (latestMetrics.length > 100) {
+          latestMetrics.shift();
+        }
+        
+        // Broadcast to WebSocket clients
+        broadcast('metrics', metricData);
+      } catch (error) {
+        console.error('Error processing metrics message:', error);
+      }
+    },
+  });
+  
+  // Anomalies consumer
+  await anomaliesConsumer.run({
+    eachMessage: async ({ topic, partition, message }) => {
+      try {
+        const anomaly = JSON.parse(message.value.toString());
+        console.log('Received anomaly:', anomaly);
+        
+        // Store latest anomaly and limit array size
+        latestAnomalies.push(anomaly);
+        if (latestAnomalies.length > 20) {
+          latestAnomalies.shift();
+        }
+        
+        // Broadcast to WebSocket clients
+        broadcast('anomalies', anomaly);
+      } catch (error) {
+        console.error('Error processing anomaly message:', error);
+      }
+    },
+  });
+  
+  // Service health consumer
+  await serviceHealthConsumer.run({
+    eachMessage: async ({ topic, partition, message }) => {
+      try {
+        const health = JSON.parse(message.value.toString());
+        console.log('Received service health:', health);
+        
+        // Store latest service health
+        serviceHealth[health.service] = health;
+        
+        // Broadcast to WebSocket clients
+        broadcast('service-health', health);
+      } catch (error) {
+        console.error('Error processing service health message:', error);
+      }
+    },
+  });
+  
+  console.log('Kafka consumers running');
+}
 
 // WebSocket connection handler
 wss.on('connection', (ws) => {
@@ -137,133 +233,23 @@ app.get('/api/service-health', (req, res) => {
   res.status(200).json({ serviceHealth });
 });
 
-// Generate sample data for testing
-let sampleDataInterval;
-
-function generateSampleData() {
-  // Generate for each service and metric combination
-  services.forEach(service => {
-    metrics.forEach(metric => {
-      // Generate random metric value
-      let value;
-      switch (metric) {
-        case 'cpu_usage':
-          value = 10 + Math.random() * 90; // 10-100%
-          break;
-        case 'memory_usage':
-          value = 20 + Math.random() * 70; // 20-90%
-          break;
-        case 'response_time':
-          value = 10 + Math.random() * 990; // 10-1000ms
-          break;
-        case 'error_count':
-          value = Math.floor(Math.random() * 10); // 0-10 errors
-          break;
-        case 'request_count':
-          value = 10 + Math.floor(Math.random() * 990); // 10-1000 requests
-          break;
-        default:
-          value = Math.random() * 100;
-      }
-      
-      // Occasionally generate anomalies
-      const isAnomaly = Math.random() < 0.05;
-      if (isAnomaly) {
-        value = value * 3;  // Triple the value to simulate an anomaly
-      }
-      
-      // Create metric data
-      const metricData = {
-        id: uuidv4(),
-        timestamp: Date.now(),
-        service: service,
-        metric: metric,
-        value: value,
-        host: `host-${Math.floor(Math.random() * 5) + 1}`,
-        region: Math.random() > 0.5 ? 'us-east' : 'us-west'
-      };
-      
-      // Store latest metric and limit array size
-      latestMetrics.push(metricData);
-      if (latestMetrics.length > 100) {
-        latestMetrics.shift();
-      }
-      
-      // Broadcast to WebSocket clients
-      broadcast('metrics', metricData);
-      
-      // Check for anomalies
-      if (isAnomaly || 
-         (metric === 'cpu_usage' && value > 90) ||
-         (metric === 'response_time' && value > 500) ||
-         (metric === 'error_count' && value > 5)) {
-        
-        const anomaly = {
-          ...metricData,
-          expected_value: metricData.value / 3,
-          deviation: 2.0,
-          severity: value > 90 ? 'high' : value > 70 ? 'medium' : 'low'
-        };
-        
-        // Store latest anomaly and limit array size
-        latestAnomalies.push(anomaly);
-        if (latestAnomalies.length > 20) {
-          latestAnomalies.shift();
-        }
-        
-        broadcast('anomalies', anomaly);
-      }
-    });
-    
-    // Generate service health
-    const cpuUsage = 10 + Math.random() * 80;
-    const memoryUsage = 20 + Math.random() * 60;
-    const responseTime = 50 + Math.random() * 450;
-    
-    // Determine health status based on metrics
-    let status = 'healthy';
-    if (cpuUsage > 80 || memoryUsage > 80 || responseTime > 500) {
-      status = 'critical';
-    } else if (cpuUsage > 60 || memoryUsage > 60 || responseTime > 200) {
-      status = 'warning';
-    }
-    
-    const health = {
-      service: service,
-      timestamp: Date.now(),
-      status: status,
-      metrics_count: 10 + Math.floor(Math.random() * 90),
-      anomalies_count: Math.floor(Math.random() * 10),
-      avg_response_time: responseTime,
-      avg_cpu_usage: cpuUsage,
-      avg_memory_usage: memoryUsage
-    };
-    
-    // Store latest service health
-    serviceHealth[service] = health;
-    
-    broadcast('service-health', health);
-  });
-}
-
 // Start server
 const PORT = process.env.PORT || 8080;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`API Gateway server running on port ${PORT}`);
   
-  // Generate sample data every 5 seconds
-  sampleDataInterval = setInterval(generateSampleData, 5000);
-  
-  // Generate initial data
-  generateSampleData();
-  
-  console.log('Sample data generator started');
+  // Connect to Kafka and start consuming
+  await connectConsumers();
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM signal received: closing HTTP server');
-  clearInterval(sampleDataInterval);
+  
+  // Disconnect Kafka consumers
+  await metricsConsumer.disconnect();
+  await anomaliesConsumer.disconnect();
+  await serviceHealthConsumer.disconnect();
   
   server.close(() => {
     console.log('HTTP server closed');

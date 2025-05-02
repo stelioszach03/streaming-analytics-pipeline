@@ -101,18 +101,60 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9093
       KAFKA_TOPIC: metrics-data
+      SERVICE_NAME: system-monitor
+      REGION: us-east
 
-  kafka-consumer:
-    build:
-      context: ./ingestion/consumer
-    container_name: kafka-consumer
+  # ===== Processing Services =====
+  flink-jobmanager:
+    image: flink:1.17.0-scala_2.12-java11
+    container_name: flink-jobmanager
+    ports:
+      - "8081:8081"
+    command: jobmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        state.backend: filesystem
+        state.checkpoints.dir: file:///tmp/flink-checkpoints
+        heartbeat.interval: 1000
+        heartbeat.timeout: 5000
+
+  flink-taskmanager:
+    image: flink:1.17.0-scala_2.12-java11
+    container_name: flink-taskmanager
     depends_on:
+      - flink-jobmanager
+    command: taskmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        state.backend: filesystem
+        state.checkpoints.dir: file:///tmp/flink-checkpoints
+        heartbeat.interval: 1000
+        heartbeat.timeout: 5000
+
+  flink-metrics-job:
+    build:
+      context: ./processing/flink-jobs
+    container_name: flink-metrics-job
+    depends_on:
+      - flink-jobmanager
+      - flink-taskmanager
       - kafka
       - kafka-setup
     environment:
+      FLINK_JOBMANAGER_HOST: flink-jobmanager
       KAFKA_BOOTSTRAP_SERVERS: kafka:9093
-      KAFKA_TOPIC: metrics-data
-      KAFKA_GROUP_ID: metrics-consumer-group
+      KAFKA_SOURCE_TOPIC: metrics-data
+      KAFKA_SINK_TOPIC: processed-metrics
+      KAFKA_ALERTS_TOPIC: alerts
+      ELASTICSEARCH_HOST: elasticsearch
+      ELASTICSEARCH_PORT: 9200
 
   # ===== API Gateway =====
   api-gateway:
@@ -142,7 +184,7 @@ services:
     ports:
       - "80:80"
     environment:
-      REACT_APP_WEBSOCKET_URL: ws://api-gateway:8080/ws
+      REACT_APP_WEBSOCKET_URL: ws://localhost:8080/ws
     depends_on:
       - api-gateway
     healthcheck:
@@ -151,3 +193,34 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+  # ===== Monitoring Services =====
+  prometheus:
+    image: prom/prometheus:v2.43.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    depends_on:
+      - api-gateway
+
+  grafana:
+    image: grafana/grafana:9.4.7
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
