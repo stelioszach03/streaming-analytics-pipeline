@@ -19,6 +19,7 @@ import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
@@ -26,10 +27,12 @@ import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
-import org.apache.flink.connector.elasticsearch7.sink.Elasticsearch7SinkBuilder;
-import org.apache.http.HttpHost;
+
+// Using standard Elasticsearch client instead of Flink's connector
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.apache.http.HttpHost;
 
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -117,12 +120,13 @@ public class MetricsProcessingJob {
             }
         });
         
-        // Detect anomalies using a stateful operation
-        DataStream<MetricEvent> processedStream = metricStream
+        // Detect anomalies using a stateful operation - note: using SingleOutputStreamOperator
+        // to properly handle side outputs
+        SingleOutputStreamOperator<MetricEvent> processedStream = metricStream
                 .keyBy(event -> event.getService() + "-" + event.getMetric())
                 .flatMap(new AnomalyDetector());
         
-        // Extract anomalies using side output
+        // Extract anomalies using side output - correct API for Flink 1.17
         DataStream<MetricEvent> anomalyStream = processedStream.getSideOutput(anomalyOutputTag);
         
         // Window operations for aggregations (every minute)
@@ -147,30 +151,45 @@ public class MetricsProcessingJob {
         // Send alerts to Kafka
         anomalyJsonStream.sinkTo(alertsSink);
         
-        // Send aggregated metrics to Elasticsearch
-        windowedAggregations.sinkTo(
-                new Elasticsearch7SinkBuilder<AggregatedMetric>()
-                        .setHosts(new HttpHost(elasticsearchHost, elasticsearchPort, "http"))
-                        .setEmitter((element, context, indexer) -> {
-                            Map<String, Object> document = new HashMap<>();
-                            document.put("service", element.getService());
-                            document.put("metric", element.getMetric());
-                            document.put("timestamp", element.getTimestamp());
-                            document.put("min", element.getMin());
-                            document.put("max", element.getMax());
-                            document.put("avg", element.getAvg());
-                            document.put("count", element.getCount());
-                            document.put("window_start", element.getWindowStart());
-                            document.put("window_end", element.getWindowEnd());
-                            
-                            IndexRequest indexRequest = Requests.indexRequest()
-                                    .index(elasticsearchIndex)
-                                    .source(document);
-                            
-                            indexer.add(indexRequest);
-                        })
-                        .build()
-        );
+        // Send aggregated metrics to Elasticsearch using a process function
+        // instead of the Elasticsearch connector
+        windowedAggregations.addSink(new org.apache.flink.streaming.api.functions.sink.SinkFunction<AggregatedMetric>() {
+            @Override
+            public void invoke(AggregatedMetric value, Context context) {
+                try {
+                    // Set up Elasticsearch client (this is simplified)
+                    // In a real application, you would use a connection pool
+                    RestHighLevelClient client = new RestHighLevelClient(
+                            org.elasticsearch.client.RestClient.builder(
+                                    new HttpHost(elasticsearchHost, elasticsearchPort, "http")));
+                    
+                    // Create the document
+                    Map<String, Object> document = new HashMap<>();
+                    document.put("service", value.getService());
+                    document.put("metric", value.getMetric());
+                    document.put("timestamp", value.getTimestamp());
+                    document.put("min", value.getMin());
+                    document.put("max", value.getMax());
+                    document.put("avg", value.getAvg());
+                    document.put("count", value.getCount());
+                    document.put("window_start", value.getWindowStart());
+                    document.put("window_end", value.getWindowEnd());
+                    
+                    // Create the index request
+                    IndexRequest indexRequest = new IndexRequest(elasticsearchIndex)
+                            .source(document);
+                    
+                    // Execute the request
+                    client.index(indexRequest, org.elasticsearch.client.RequestOptions.DEFAULT);
+                    
+                    // Close the client (in a real app, you'd manage this differently)
+                    client.close();
+                    
+                } catch (Exception e) {
+                    LOG.error("Error writing to Elasticsearch", e);
+                }
+            }
+        });
         
         // Execute the streaming pipeline
         env.execute("Metrics Processing Job");
@@ -219,8 +238,8 @@ public class MetricsProcessingJob {
                 boolean isAnomaly = Math.abs(event.getValue() - stats.getAvg()) > 2 * stdDev;
                 
                 if (isAnomaly) {
-                    // Output to side output for anomalies
-                    getRuntimeContext().getOutput(anomalyOutputTag, event);
+                    // Output to side output for anomalies - updated API for Flink 1.17
+                    context.output(anomalyOutputTag, event);
                 }
             }
             
@@ -232,7 +251,7 @@ public class MetricsProcessingJob {
     /**
      * Window function for aggregating metrics
      */
-    public static class MetricAggregator extends ProcessWindowFunction<
+    public static class MetricAggregator extends ProcessWindowFunction
             MetricEvent, AggregatedMetric, String, TimeWindow> {
         
         @Override
