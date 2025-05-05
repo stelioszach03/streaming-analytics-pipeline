@@ -44,7 +44,7 @@
         <!-- Flink Elasticsearch Connector -->
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-connector-elasticsearch7</artifactId>
+            <artifactId>flink-connector-elasticsearch-7</artifactId>
             <version>${flink.version}</version>
         </dependency>
 
