@@ -1,26 +1,34 @@
 #!/bin/bash
 
-# Install netcat
-apt-get update && apt-get install -y netcat-openbsd
+# Set up counter for retry attempts
+RETRY_COUNT=0
+MAX_RETRIES=20
 
-# Wait for Kafka and Elasticsearch to be available
 echo "Waiting for Kafka..."
-until nc -z $KAFKA_BOOTSTRAP_SERVERS 9093; do
+until nc -z $KAFKA_BOOTSTRAP_SERVERS 9093 || [ $RETRY_COUNT -ge $MAX_RETRIES ]; do
   echo "Kafka not available yet - sleeping"
-  sleep 2
+  sleep 5
+  RETRY_COUNT=$((RETRY_COUNT+1))
 done
+
+# Reset counter
+RETRY_COUNT=0
 
 echo "Waiting for Elasticsearch..."
-until nc -z $ELASTICSEARCH_HOST 9200; do
+until curl -s -f "http://$ELASTICSEARCH_HOST:$ELASTICSEARCH_PORT/_cluster/health" > /dev/null || [ $RETRY_COUNT -ge $MAX_RETRIES ]; do
   echo "Elasticsearch not available yet - sleeping"
-  sleep 2
+  sleep 5
+  RETRY_COUNT=$((RETRY_COUNT+1))
 done
 
-echo "Submitting Flink job..."
-flink run -d /opt/flink/usrlib/flink-metrics-processor.jar
-
-# Keep the container running
-tail -f /dev/null
+# Wait for Flink JobManager
+RETRY_COUNT=0
+echo "Waiting for Flink JobManager at $FLINK_JOBMANAGER_HOST:$FLINK_JOBMANAGER_PORT..."
+until nc -z $FLINK_JOBMANAGER_HOST $FLINK_JOBMANAGER_PORT || [ $RETRY_COUNT -ge $MAX_RETRIES ]; do
+  echo "Flink JobManager not available yet - sleeping"
+  sleep 5
+  RETRY_COUNT=$((RETRY_COUNT+1))
+done
 
 # Create Elasticsearch index if it doesn't exist
 echo "Creating Elasticsearch index if it doesn't exist..."
@@ -40,3 +48,10 @@ curl -X PUT "http://$ELASTICSEARCH_HOST:$ELASTICSEARCH_PORT/metrics" -H 'Content
     }
   }
 }' || echo "Error creating Elasticsearch index"
+
+echo "Submitting Flink job..."
+# Explicitly specify the JobManager address to connect to
+flink run -m $FLINK_JOBMANAGER_HOST:$FLINK_JOBMANAGER_PORT -d /opt/flink/usrlib/flink-metrics-processor.jar
+
+# Keep the container running
+tail -f /dev/null

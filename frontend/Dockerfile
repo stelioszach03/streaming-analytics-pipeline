@@ -19,8 +19,9 @@ COPY --from=build /app/build /usr/share/nginx/html
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Add health check endpoint
-RUN echo 'healthy' > /usr/share/nginx/html/health
+# Add health check endpoint explicitly
+RUN mkdir -p /usr/share/nginx/html/health && \
+    echo 'healthy' > /usr/share/nginx/html/health/index.html
 
 # Expose port
 EXPOSE 80

@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -11,9 +12,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
-        <flink.version>1.16.1</flink.version>  <!-- Updated to 1.16.1 which has the Elasticsearch connector available -->
+        <flink.version>1.16.1</flink.version>
         <kafka.version>3.4.0</kafka.version>
-        <elasticsearch.version>7.17.10</elasticsearch.version>
+        <elasticsearch.version>7.10.2</elasticsearch.version>
         <json.version>20230227</json.version>
         <slf4j.version>1.7.36</slf4j.version>
     </properties>
@@ -54,18 +55,11 @@
             <version>${flink.version}</version>
         </dependency>
 
-        <!-- Flink Elasticsearch Connector -->
+        <!-- Flink Elasticsearch Connector - older style connector -->
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-connector-elasticsearch7</artifactId>
             <version>${flink.version}</version>
-        </dependency>
-
-        <!-- Elasticsearch Java Client -->
-        <dependency>
-            <groupId>org.elasticsearch.client</groupId>
-            <artifactId>elasticsearch-rest-high-level-client</artifactId>
-            <version>${elasticsearch.version}</version>
         </dependency>
 
         <!-- JSON Processing -->

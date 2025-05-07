@@ -26,10 +26,16 @@ const latestMetrics = [];
 const latestAnomalies = [];
 const serviceHealth = {};
 
-// Kafka setup
+// Kafka setup with retry logic
 const kafka = new Kafka({
   clientId: 'api-gateway',
-  brokers: [process.env.KAFKA_BOOTSTRAP_SERVERS || 'kafka:9093']
+  brokers: [process.env.KAFKA_BOOTSTRAP_SERVERS || 'kafka:9093'],
+  retry: {
+    initialRetryTime: 1000,
+    retries: 10,
+    factor: 1.5,
+    maxRetryTime: 10000
+  }
 });
 
 // Create Kafka consumers
@@ -37,7 +43,7 @@ const metricsConsumer = kafka.consumer({ groupId: 'metrics-gateway-group' });
 const anomaliesConsumer = kafka.consumer({ groupId: 'anomalies-gateway-group' });
 const serviceHealthConsumer = kafka.consumer({ groupId: 'service-health-gateway-group' });
 
-// Connect Kafka consumers
+// Connect Kafka consumers with retry logic
 async function connectConsumers() {
   try {
     // Connect metrics consumer
@@ -58,6 +64,12 @@ async function connectConsumers() {
     await startConsuming();
   } catch (error) {
     console.error('Error connecting Kafka consumers:', error);
+    
+    // Handle connectivity error but don't crash - services might come up later
+    setTimeout(() => {
+      console.log('Retrying Kafka connection...');
+      connectConsumers();
+    }, 5000);
   }
 }
 
@@ -239,7 +251,9 @@ server.listen(PORT, async () => {
   console.log(`API Gateway server running on port ${PORT}`);
   
   // Connect to Kafka and start consuming
-  await connectConsumers();
+  await connectConsumers().catch(err => {
+    console.error('Initial Kafka connection failed:', err);
+  });
 });
 
 // Graceful shutdown
@@ -247,9 +261,13 @@ process.on('SIGTERM', async () => {
   console.log('SIGTERM signal received: closing HTTP server');
   
   // Disconnect Kafka consumers
-  await metricsConsumer.disconnect();
-  await anomaliesConsumer.disconnect();
-  await serviceHealthConsumer.disconnect();
+  try {
+    await metricsConsumer.disconnect();
+    await anomaliesConsumer.disconnect();
+    await serviceHealthConsumer.disconnect();
+  } catch (err) {
+    console.error('Error disconnecting Kafka consumers:', err);
+  }
   
   server.close(() => {
     console.log('HTTP server closed');

@@ -21,7 +21,8 @@ services:
     image: confluentinc/cp-kafka:7.4.0
     container_name: kafka
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     ports:
       - "9092:9092"
     environment:
@@ -35,15 +36,16 @@ services:
     healthcheck:
       test: kafka-topics --bootstrap-server kafka:9093 --list || exit 1
       interval: 10s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 20s
       timeout: 10s
 
   kafka-setup:
     image: confluentinc/cp-kafka:7.4.0
     container_name: kafka-setup
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     command: >
       bash -c "
         echo 'Waiting for Kafka to be available...'
@@ -73,7 +75,8 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 30s
 
   cassandra:
     image: cassandra:4.1
@@ -97,7 +100,8 @@ services:
     image: cassandra:4.1
     container_name: cassandra-setup
     depends_on:
-      - cassandra
+      cassandra:
+        condition: service_healthy
     command: >
       bash -c "
         echo 'Waiting for Cassandra to be ready...'
@@ -115,8 +119,10 @@ services:
       context: ./ingestion/producer
     container_name: kafka-producer
     depends_on:
-      - kafka
-      - kafka-setup
+      kafka:
+        condition: service_healthy
+      kafka-setup:
+        condition: service_completed_successfully
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9093
       KAFKA_TOPIC: metrics-data
@@ -139,12 +145,19 @@ services:
         state.checkpoints.dir: file:///tmp/flink-checkpoints
         heartbeat.interval: 1000
         heartbeat.timeout: 5000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/overview"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   flink-taskmanager:
     image: flink:1.17.0-scala_2.12-java11
     container_name: flink-taskmanager
     depends_on:
-      - flink-jobmanager
+      flink-jobmanager:
+        condition: service_healthy
     command: taskmanager
     environment:
       - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
@@ -162,14 +175,16 @@ services:
       context: ./processing/flink-jobs
     container_name: flink-metrics-job
     depends_on:
-      - flink-jobmanager
-      - flink-taskmanager
-      - kafka
-      - kafka-setup
-      - elasticsearch
+      flink-jobmanager:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
     environment:
       FLINK_JOBMANAGER_HOST: flink-jobmanager
-      KAFKA_BOOTSTRAP_SERVERS: kafka
+      FLINK_JOBMANAGER_PORT: 8081
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9093
       KAFKA_SOURCE_TOPIC: metrics-data
       KAFKA_SINK_TOPIC: processed-metrics
       KAFKA_ALERTS_TOPIC: alerts
@@ -187,8 +202,8 @@ services:
       PORT: 8080
       KAFKA_BOOTSTRAP_SERVERS: kafka:9093
     depends_on:
-      - kafka
-      - kafka-setup
+      kafka:
+        condition: service_healthy
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
       interval: 20s
@@ -206,12 +221,13 @@ services:
     environment:
       REACT_APP_WEBSOCKET_URL: ws://localhost:8080/ws
     depends_on:
-      - api-gateway
+      api-gateway:
+        condition: service_healthy
     healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://localhost/health || exit 1
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
       start_period: 30s
 
   # ===== Monitoring Services =====
@@ -229,7 +245,8 @@ services:
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
     depends_on:
-      - api-gateway
+      api-gateway:
+        condition: service_healthy
 
   grafana:
     image: grafana/grafana:9.4.7
@@ -243,7 +260,8 @@ services:
       - ./monitoring/grafana/dashboards:/etc/grafana/dashboards
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_started
 
 volumes:
   esdata:
