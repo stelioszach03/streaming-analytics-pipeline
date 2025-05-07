@@ -1,7 +1,6 @@
 package com.example.streaming.processing;
 
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
@@ -9,11 +8,10 @@ import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
-import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.base.DeliveryGuarantee;
+import org.apache.flink.connector.elasticsearch.sink.Elasticsearch7SinkBuilder;
+import org.apache.flink.connector.elasticsearch.sink.RequestIndexer;
 import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
 import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
@@ -28,9 +26,6 @@ import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 
-// New Elasticsearch connector imports
-import org.apache.flink.connector.elasticsearch.sink.Elasticsearch7SinkBuilder;
-import org.apache.flink.connector.elasticsearch.sink.RequestIndexer;
 import org.apache.http.HttpHost;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
@@ -44,7 +39,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 public class MetricsProcessingJob {
     private static final Logger LOG = LoggerFactory.getLogger(MetricsProcessingJob.class);
@@ -129,7 +123,7 @@ public class MetricsProcessingJob {
                 .keyBy(event -> event.getService() + "-" + event.getMetric())
                 .flatMap(new AnomalyDetector());
         
-        // Extract anomalies using side output - correct API for Flink 1.17
+        // Extract anomalies using side output - correct API for Flink 1.16
         DataStream<MetricEvent> anomalyStream = processedStream.getSideOutput(anomalyOutputTag);
         
         // Window operations for aggregations (every minute)
@@ -155,7 +149,7 @@ public class MetricsProcessingJob {
         anomalyJsonStream.sinkTo(alertsSink);
         
         // Send aggregated metrics to Elasticsearch using the new Elasticsearch connector
-        final List<HttpHost> httpHosts = new ArrayList<>();
+        List<HttpHost> httpHosts = new ArrayList<>();
         httpHosts.add(new HttpHost(elasticsearchHost, elasticsearchPort, "http"));
         
         windowedAggregations.sinkTo(
@@ -242,7 +236,7 @@ public class MetricsProcessingJob {
     /**
      * Window function for aggregating metrics
      */
-    public static class MetricAggregator extends ProcessWindowFunction
+    public static class MetricAggregator extends ProcessWindowFunction<
             MetricEvent, AggregatedMetric, String, TimeWindow> {
         
         @Override
