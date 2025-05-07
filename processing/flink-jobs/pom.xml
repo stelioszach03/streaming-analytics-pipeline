@@ -55,10 +55,10 @@
         </dependency>
 
         <!-- Flink Elasticsearch Connector -->
-        <!-- Note: Using the updated artifact ID and version compatible with Flink 1.17.0 -->
+        <!-- Changed from flink-connector-elasticsearch7 to flink-connector-elasticsearch-7 -->
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-connector-elasticsearch7</artifactId>
+            <artifactId>flink-connector-elasticsearch-7</artifactId>
             <version>${flink.version}</version>
         </dependency>
 

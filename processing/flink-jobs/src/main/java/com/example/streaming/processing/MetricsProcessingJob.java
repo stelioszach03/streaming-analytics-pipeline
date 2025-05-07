@@ -28,18 +28,21 @@ import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 
-// Using standard Elasticsearch client instead of Flink's connector
+// New Elasticsearch connector imports
+import org.apache.flink.connector.elasticsearch.sink.Elasticsearch7SinkBuilder;
+import org.apache.flink.connector.elasticsearch.sink.RequestIndexer;
+import org.apache.http.HttpHost;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.apache.http.HttpHost;
 
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -151,45 +154,33 @@ public class MetricsProcessingJob {
         // Send alerts to Kafka
         anomalyJsonStream.sinkTo(alertsSink);
         
-        // Send aggregated metrics to Elasticsearch using a process function
-        // instead of the Elasticsearch connector
-        windowedAggregations.addSink(new org.apache.flink.streaming.api.functions.sink.SinkFunction<AggregatedMetric>() {
-            @Override
-            public void invoke(AggregatedMetric value, Context context) {
-                try {
-                    // Set up Elasticsearch client (this is simplified)
-                    // In a real application, you would use a connection pool
-                    RestHighLevelClient client = new RestHighLevelClient(
-                            org.elasticsearch.client.RestClient.builder(
-                                    new HttpHost(elasticsearchHost, elasticsearchPort, "http")));
-                    
-                    // Create the document
+        // Send aggregated metrics to Elasticsearch using the new Elasticsearch connector
+        final List<HttpHost> httpHosts = new ArrayList<>();
+        httpHosts.add(new HttpHost(elasticsearchHost, elasticsearchPort, "http"));
+        
+        windowedAggregations.sinkTo(
+            new Elasticsearch7SinkBuilder<AggregatedMetric>()
+                .setHosts(httpHosts.toArray(new HttpHost[0]))
+                .setEmitter((element, context, indexer) -> {
                     Map<String, Object> document = new HashMap<>();
-                    document.put("service", value.getService());
-                    document.put("metric", value.getMetric());
-                    document.put("timestamp", value.getTimestamp());
-                    document.put("min", value.getMin());
-                    document.put("max", value.getMax());
-                    document.put("avg", value.getAvg());
-                    document.put("count", value.getCount());
-                    document.put("window_start", value.getWindowStart());
-                    document.put("window_end", value.getWindowEnd());
+                    document.put("service", element.getService());
+                    document.put("metric", element.getMetric());
+                    document.put("timestamp", element.getTimestamp());
+                    document.put("min", element.getMin());
+                    document.put("max", element.getMax());
+                    document.put("avg", element.getAvg());
+                    document.put("count", element.getCount());
+                    document.put("window_start", element.getWindowStart());
+                    document.put("window_end", element.getWindowEnd());
                     
-                    // Create the index request
-                    IndexRequest indexRequest = new IndexRequest(elasticsearchIndex)
+                    IndexRequest indexRequest = Requests.indexRequest()
+                            .index(elasticsearchIndex)
                             .source(document);
                     
-                    // Execute the request
-                    client.index(indexRequest, org.elasticsearch.client.RequestOptions.DEFAULT);
-                    
-                    // Close the client (in a real app, you'd manage this differently)
-                    client.close();
-                    
-                } catch (Exception e) {
-                    LOG.error("Error writing to Elasticsearch", e);
-                }
-            }
-        });
+                    indexer.add(indexRequest);
+                })
+                .build()
+        );
         
         // Execute the streaming pipeline
         env.execute("Metrics Processing Job");
@@ -238,8 +229,8 @@ public class MetricsProcessingJob {
                 boolean isAnomaly = Math.abs(event.getValue() - stats.getAvg()) > 2 * stdDev;
                 
                 if (isAnomaly) {
-                    // Output to side output for anomalies - updated API for Flink 1.17
-                    context.output(anomalyOutputTag, event);
+                    // Output to side output for anomalies
+                    getRuntimeContext().getOutput(anomalyOutputTag, event);
                 }
             }
             
