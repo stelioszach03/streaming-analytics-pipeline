@@ -169,7 +169,7 @@ services:
       - elasticsearch
     environment:
       FLINK_JOBMANAGER_HOST: flink-jobmanager
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9093
+      KAFKA_BOOTSTRAP_SERVERS: kafka
       KAFKA_SOURCE_TOPIC: metrics-data
       KAFKA_SINK_TOPIC: processed-metrics
       KAFKA_ALERTS_TOPIC: alerts
