@@ -12,7 +12,7 @@ COPY --from=build /app/target/flink-metrics-processor-1.0-SNAPSHOT.jar /opt/flin
 
 # Copy the necessary dependencies
 COPY --from=build /root/.m2/repository/org/apache/flink/flink-connector-kafka/1.16.1/flink-connector-kafka-1.16.1.jar /opt/flink/lib/
-COPY --from=build /root/.m2/repository/org/apache/kafka/kafka-clients/3.4.0/kafka-clients-3.4.0.jar /opt/flink/lib/
+COPY --from=build /root/.m2/repository/org/apache/kafka/kafka-clients/3.2.3/kafka-clients-3.2.3.jar /opt/flink/lib/
 COPY --from=build /root/.m2/repository/org/json/json/20230227/json-20230227.jar /opt/flink/lib/
 
 # Copy Elasticsearch connector and dependencies for Flink 1.16.1
