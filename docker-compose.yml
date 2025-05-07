@@ -9,7 +9,7 @@ services:
   # ===== Infrastructure Services =====
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
-    container_name: zookeeper
+    hostname: zookeeper
     ports:
       - "2181:2181"
     environment:
@@ -26,7 +26,7 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: kafka
+    hostname: kafka
     depends_on:
       zookeeper:
         condition: service_healthy
@@ -40,13 +40,13 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      # Fix for message size issue - increasing to 1GB
-      KAFKA_MESSAGE_MAX_BYTES: 1073741824
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 1073741824
-      KAFKA_SOCKET_REQUEST_MAX_BYTES: 1073741824
-      # Added for consumer and producer
-      KAFKA_CONSUMER_MAX_PARTITION_FETCH_BYTES: 1073741824
-      KAFKA_PRODUCER_MAX_REQUEST_SIZE: 1073741824
+      # Αύξηση ορίων μεγέθους μηνύματος
+      KAFKA_MESSAGE_MAX_BYTES: 2147483647
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 2147483647
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: 2147483647
+      # Ρυθμίσεις για consumer και producer
+      KAFKA_CONSUMER_MAX_PARTITION_FETCH_BYTES: 2147483647
+      KAFKA_PRODUCER_MAX_REQUEST_SIZE: 2147483647
     networks:
       - streaming-net
     healthcheck:
@@ -58,7 +58,7 @@ services:
 
   kafka-setup:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: kafka-setup
+    hostname: kafka-setup
     depends_on:
       kafka:
         condition: service_healthy
@@ -78,7 +78,7 @@ services:
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.17.10
-    container_name: elasticsearch
+    hostname: elasticsearch
     environment:
       - discovery.type=single-node
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
@@ -99,7 +99,7 @@ services:
 
   cassandra:
     image: cassandra:4.1
-    container_name: cassandra
+    hostname: cassandra
     ports:
       - "9042:9042"
     environment:
@@ -119,7 +119,7 @@ services:
 
   cassandra-setup:
     image: cassandra:4.1
-    container_name: cassandra-setup
+    hostname: cassandra-setup
     depends_on:
       cassandra:
         condition: service_healthy
@@ -140,7 +140,7 @@ services:
   kafka-producer:
     build:
       context: ./ingestion/producer
-    container_name: kafka-producer
+    hostname: kafka-producer
     depends_on:
       kafka:
         condition: service_healthy
@@ -157,7 +157,7 @@ services:
   # ===== Processing Services =====
   flink-jobmanager:
     image: flink:1.17.0-scala_2.12-java11
-    container_name: flink-jobmanager
+    hostname: flink-jobmanager
     ports:
       - "8081:8081"
     command: jobmanager
@@ -185,7 +185,7 @@ services:
 
   flink-taskmanager:
     image: flink:1.17.0-scala_2.12-java11
-    container_name: flink-taskmanager
+    hostname: flink-taskmanager
     depends_on:
       flink-jobmanager:
         condition: service_healthy
@@ -206,7 +206,7 @@ services:
   flink-metrics-job:
     build:
       context: ./processing/flink-jobs
-    container_name: flink-metrics-job
+    hostname: flink-metrics-job
     depends_on:
       flink-jobmanager:
         condition: service_healthy
@@ -231,7 +231,7 @@ services:
   api-gateway:
     build:
       context: ./api-gateway
-    container_name: api-gateway
+    hostname: api-gateway
     ports:
       - "8080:8080"
     environment:
@@ -253,7 +253,7 @@ services:
   frontend:
     build:
       context: ./frontend
-    container_name: frontend
+    hostname: frontend
     ports:
       - "80:80"
     environment:
@@ -273,7 +273,7 @@ services:
   # ===== Monitoring Services =====
   prometheus:
     image: prom/prometheus:v2.43.0
-    container_name: prometheus
+    hostname: prometheus
     ports:
       - "9090:9090"
     volumes:
@@ -292,7 +292,7 @@ services:
 
   alertmanager:
     image: prom/alertmanager:latest
-    container_name: alertmanager
+    hostname: alertmanager
     ports:
       - "9093:9093"
     volumes:
@@ -306,7 +306,7 @@ services:
 
   grafana:
     image: grafana/grafana:9.4.7
-    container_name: grafana
+    hostname: grafana
     ports:
       - "3000:3000"
     environment:
