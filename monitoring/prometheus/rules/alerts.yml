@@ -19,15 +19,6 @@ groups:
           summary: "High memory usage (instance {{ $labels.instance }})"
           description: "Memory usage is > 85%\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 
-      - alert: HighDiskUsage
-        expr: 100 - ((node_filesystem_avail_bytes{mountpoint="/"} * 100) / node_filesystem_size_bytes{mountpoint="/"}) > 85
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High disk usage (instance {{ $labels.instance }})"
-          description: "Disk usage is > 85%\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-
   - name: kafka_alerts
     rules:
       - alert: KafkaTopicLag
@@ -39,73 +30,6 @@ groups:
           summary: "Kafka consumer lag (topic {{ $labels.topic }})"
           description: "Kafka consumer lag is > 10000 messages\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 
-      - alert: KafkaBrokerOffline
-        expr: kafka_server_active_controller_count{} < 1
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Kafka broker offline (instance {{ $labels.instance }})"
-          description: "Kafka broker is offline\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-
-  - name: flink_alerts
-    rules:
-      - alert: FlinkJobRestarting
-        expr: flink_jobmanager_job_numRestarts > 5
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Flink job restarting frequently (job {{ $labels.job_name }})"
-          description: "Flink job has restarted more than 5 times in 5 minutes\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-
-      - alert: FlinkJobFailure
-        expr: flink_jobmanager_job_failed > 0
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Flink job failed (job {{ $labels.job_name }})"
-          description: "Flink job has failed\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-
-      - alert: FlinkHighBackpressure
-        expr: flink_taskmanager_job_task_backPressuredTimeMsPerSecond > 750
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Flink task backpressure (task {{ $labels.task_name }})"
-          description: "Flink task is experiencing high backpressure > 750ms/sec\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-
-  - name: cassandra_alerts
-    rules:
-      - alert: CassandraNodeDown
-        expr: up{job="cassandra"} == 0
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Cassandra node down (instance {{ $labels.instance }})"
-          description: "Cassandra node is down\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-
-      - alert: CassandraHighReadLatency
-        expr: cassandra_clientrequest_latency{request="Read"} > 100
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Cassandra high read latency (instance {{ $labels.instance }})"
-          description: "Cassandra read latency is > 100ms\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-
-      - alert: CassandraHighWriteLatency
-        expr: cassandra_clientrequest_latency{request="Write"} > 50
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Cassandra high write latency (instance {{ $labels.instance }})"
-          description: "Cassandra write latency is > 50ms\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-
   - name: api_alerts
     rules:
       - alert: HighResponseTime
@@ -116,23 +40,3 @@ groups:
         annotations:
           summary: "High API response time (instance {{ $labels.instance }})"
           description: "API response time is > 2 seconds\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-
-      - alert: HighErrorRate
-        expr: sum(rate(http_server_requests_seconds_count{job="api-gateway",status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count{job="api-gateway"}[5m])) * 100 > 5
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "High API error rate (instance {{ $labels.instance }})"
-          description: "API error rate is > 5%\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-
-  - name: frontend_alerts
-    rules:
-      - alert: FrontendDown
-        expr: up{job="frontend"} == 0
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Frontend service down (instance {{ $labels.instance }})"
-          description: "Frontend service is down\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"

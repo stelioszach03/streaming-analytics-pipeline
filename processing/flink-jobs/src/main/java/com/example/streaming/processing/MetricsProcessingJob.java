@@ -3,11 +3,7 @@ package com.example.streaming.processing;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
-import org.apache.flink.api.common.typeinfo.TypeHint;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.base.DeliveryGuarantee;
-import org.apache.flink.connector.elasticsearch.sink.Elasticsearch7SinkBuilder;
 import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
 import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
@@ -20,12 +16,17 @@ import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
+import org.apache.flink.streaming.connectors.elasticsearch.ElasticsearchSinkFunction;
+import org.apache.flink.streaming.connectors.elasticsearch.RequestIndexer;
+import org.apache.flink.streaming.connectors.elasticsearch7.ElasticsearchSink;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
+import org.apache.flink.api.common.functions.RuntimeContext;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.action.ActionRequest;
 
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -114,7 +115,7 @@ public class MetricsProcessingJob {
             }
         });
         
-        // Detect anomalies using a process function instead of flatMap
+        // Detect anomalies using a process function
         SingleOutputStreamOperator<MetricEvent> processedStream = metricStream
                 .keyBy(event -> event.getService() + "-" + event.getMetric())
                 .process(new AnomalyDetectorProcess());
@@ -144,14 +145,16 @@ public class MetricsProcessingJob {
         // Send alerts to Kafka
         anomalyJsonStream.sinkTo(alertsSink);
         
-        // Send aggregated metrics to Elasticsearch using the new Elasticsearch connector
+        // Send aggregated metrics to Elasticsearch
         List<HttpHost> httpHosts = new ArrayList<>();
         httpHosts.add(new HttpHost(elasticsearchHost, elasticsearchPort, "http"));
         
-        windowedAggregations.sinkTo(
-            new Elasticsearch7SinkBuilder<AggregatedMetric>()
-                .setHosts(httpHosts.toArray(new HttpHost[0]))
-                .setEmitter((element, context, indexer) -> {
+        // Create the ElasticsearchSink
+        ElasticsearchSink.Builder<AggregatedMetric> esSinkBuilder = new ElasticsearchSink.Builder<>(
+            httpHosts,
+            new ElasticsearchSinkFunction<AggregatedMetric>() {
+                @Override
+                public void process(AggregatedMetric element, RuntimeContext ctx, RequestIndexer indexer) {
                     Map<String, Object> document = new HashMap<>();
                     document.put("service", element.getService());
                     document.put("metric", element.getMetric());
@@ -168,9 +171,15 @@ public class MetricsProcessingJob {
                             .source(document);
                     
                     indexer.add(indexRequest);
-                })
-                .build()
+                }
+            }
         );
+        
+        // Configure the sink with some settings
+        esSinkBuilder.setBulkFlushMaxActions(1); // Set this for testing, increase for production
+        
+        // Add the sink to the pipeline
+        windowedAggregations.addSink(esSinkBuilder.build());
         
         // Execute the streaming pipeline
         env.execute("Metrics Processing Job");

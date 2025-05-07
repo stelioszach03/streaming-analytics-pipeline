@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ===== Infrastructure Services =====
   zookeeper:
@@ -33,6 +31,10 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # Διόρθωση προβλήματος μεγέθους μηνύματος
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: 504857600
+      KAFKA_MESSAGE_MAX_BYTES: 104857600
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 104857600
     healthcheck:
       test: kafka-topics --bootstrap-server kafka:9093 --list || exit 1
       interval: 10s
@@ -58,7 +60,6 @@ services:
         echo 'Topics created.'
       "
 
-  # Add Elasticsearch service
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.17.10
     container_name: elasticsearch
@@ -247,6 +248,19 @@ services:
     depends_on:
       api-gateway:
         condition: service_healthy
+
+  # Προσθήκη του alertmanager - διορθωμένη έκδοση εικόνας
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager:/etc/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:9.4.7
