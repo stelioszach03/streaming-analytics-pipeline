@@ -1,6 +1,4 @@
-version: '3'
-
-# Add explicit network configuration
+# Network configuration
 networks:
   streaming-net:
     driver: bridge
@@ -33,6 +31,7 @@ services:
     ports:
       - "9092:9092"
     environment:
+      # Remove heap options from environment variables
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9093,OUTSIDE://localhost:9092
@@ -40,13 +39,13 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      # Αύξηση ορίων μεγέθους μηνύματος
-      KAFKA_MESSAGE_MAX_BYTES: 2147483647
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 2147483647
-      KAFKA_SOCKET_REQUEST_MAX_BYTES: 2147483647
-      # Ρυθμίσεις για consumer και producer
-      KAFKA_CONSUMER_MAX_PARTITION_FETCH_BYTES: 2147483647
-      KAFKA_PRODUCER_MAX_REQUEST_SIZE: 2147483647
+      
+      # Reduced message size settings
+      KAFKA_MESSAGE_MAX_BYTES: 1048576
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 1048576
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: 1048576
+      KAFKA_CONSUMER_MAX_PARTITION_FETCH_BYTES: 1048576
+      KAFKA_PRODUCER_MAX_REQUEST_SIZE: 1048576
     networks:
       - streaming-net
     healthcheck:
@@ -55,7 +54,17 @@ services:
       retries: 5
       start_period: 20s
       timeout: 10s
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    # Use custom command to set heap size
+    command: 
+      - bash
+      - -c
+      - |
+        export KAFKA_HEAP_OPTS="-Xmx512m -Xms256m"
+        /etc/confluent/docker/run
 
+  # The rest of the services remain unchanged
   kafka-setup:
     image: confluentinc/cp-kafka:7.4.0
     hostname: kafka-setup
@@ -153,6 +162,7 @@ services:
       REGION: us-east
     networks:
       - streaming-net
+    restart: on-failure
 
   # ===== Processing Services =====
   flink-jobmanager:
@@ -248,6 +258,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    restart: on-failure
 
   # ===== Frontend Service =====
   frontend:
@@ -322,5 +333,7 @@ services:
       - streaming-net
 
 volumes:
+  kafka-data:
+    driver: local
   esdata:
     driver: local
