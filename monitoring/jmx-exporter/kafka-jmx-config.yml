@@ -1,0 +1,24 @@
+hostPort: kafka:9999
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+rules:
+  - pattern: "kafka.server<type=(.+), name=(.+)><>Value"
+    name: "kafka_server_$1_$2"
+  - pattern: "kafka.controller<type=(.+), name=(.+)><>Value"
+    name: "kafka_controller_$1_$2"
+  - pattern: "kafka.network<type=(.+), name=(.+)><>Value"
+    name: "kafka_network_$1_$2"
+  - pattern: "kafka.cluster<type=(.+), name=(.+)><>Value"
+    name: "kafka_cluster_$1_$2"
+  - pattern: "kafka.log<type=(.+), name=(.+)><>Value"
+    name: "kafka_log_$1_$2"
+  - pattern: "kafka.producer<type=(.+), client-id=(.+)><>([a-z-]+)"
+    name: "kafka_producer_$3"
+    labels:
+      type: "$1"
+      client: "$2"
+  - pattern: "kafka.consumer<type=(.+), client-id=(.+)><>([a-z-]+)"
+    name: "kafka_consumer_$3"
+    labels:
+      type: "$1"
+      client: "$2"

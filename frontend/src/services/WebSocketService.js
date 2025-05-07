@@ -11,13 +11,13 @@ class WebSocketService {
   }
 
   connect(callbacks = {}) {
-    console.log(`Attempting to connect to WebSocket at ${this.serverUrl}`);
+    console.log(`Επιχειρείται σύνδεση στο WebSocket στη διεύθυνση ${this.serverUrl}`);
     
     // Create a simple WebSocket connection (native WebSocket)
     const socket = new WebSocket(this.serverUrl);
     
     socket.onopen = () => {
-      console.log('WebSocket connected successfully');
+      console.log('WebSocket συνδέθηκε επιτυχώς');
       this.connected = true;
       this.reconnectAttempts = 0;
       
@@ -37,7 +37,7 @@ class WebSocketService {
     };
     
     socket.onclose = () => {
-      console.log('WebSocket connection closed');
+      console.log('Η σύνδεση WebSocket έκλεισε');
       this.connected = false;
       
       if (callbacks.onDisconnect) {
@@ -49,7 +49,7 @@ class WebSocketService {
     };
     
     socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      console.error('Σφάλμα WebSocket:', error);
       this.connected = false;
       
       if (callbacks.onError) {
@@ -60,7 +60,7 @@ class WebSocketService {
     socket.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
-        console.log('Received message:', message);
+        console.log('Ελήφθη μήνυμα:', message);
         
         // Route message to appropriate subscription callback
         const destination = message.destination;
@@ -72,7 +72,7 @@ class WebSocketService {
           });
         }
       } catch (error) {
-        console.error('Error processing message:', error);
+        console.error('Σφάλμα επεξεργασίας μηνύματος:', error);
       }
     };
     
@@ -87,11 +87,11 @@ class WebSocketService {
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
           clearInterval(this.reconnectInterval);
           this.reconnectInterval = null;
-          console.error('Max reconnect attempts reached. Giving up.');
+          console.error('Επιτεύχθηκε ο μέγιστος αριθμός προσπαθειών επανασύνδεσης. Ακύρωση.');
           return;
         }
         
-        console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+        console.log(`Προσπάθεια επανασύνδεσης (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
         this.connect(callbacks);
       }, this.reconnectDelay);
     }
@@ -111,7 +111,7 @@ class WebSocketService {
   }
   
   subscribe(topic, callback) {
-    console.log(`Subscribing to ${topic}`);
+    console.log(`Εγγραφή στο ${topic}`);
     this.subscriptions[topic] = callback;
     
     if (this.connected) {
@@ -160,7 +160,7 @@ class WebSocketService {
       
       this.client.send(JSON.stringify(message));
     } else {
-      console.error('Cannot send message: WebSocket not connected');
+      console.error('Δεν είναι δυνατή η αποστολή μηνύματος: Το WebSocket δεν είναι συνδεδεμένο');
     }
   }
   

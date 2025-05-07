@@ -30,6 +30,7 @@ function App() {
         // Subscribe to metrics topic
         webSocketService.subscribe('/topic/metrics', (message) => {
           try {
+            console.log('Received metrics message:', message.body.substring(0, 200) + '...');
             const data = JSON.parse(message.body);
             
             setMetricsData(prevData => ({
@@ -37,13 +38,14 @@ function App() {
               metrics: updateMetrics(prevData.metrics, data)
             }));
           } catch (error) {
-            console.error('Error parsing metrics message:', error);
+            console.error('Error parsing metrics message:', error, message);
           }
         });
         
         // Subscribe to anomalies topic
         webSocketService.subscribe('/topic/anomalies', (message) => {
           try {
+            console.log('Received anomaly message:', message.body);
             const anomaly = JSON.parse(message.body);
             
             setMetricsData(prevData => ({
@@ -58,6 +60,7 @@ function App() {
         // Subscribe to service health topic
         webSocketService.subscribe('/topic/service-health', (message) => {
           try {
+            console.log('Received service health message:', message.body);
             const healthData = JSON.parse(message.body);
             
             setMetricsData(prevData => ({
@@ -93,6 +96,8 @@ function App() {
 
   // Function to update metrics with new data
   const updateMetrics = (currentMetrics, newMetricData) => {
+    console.log('Updating metrics with new data:', newMetricData);
+    
     const existingMetricIndex = currentMetrics.findIndex(m => 
       m.service === newMetricData.service && m.metric === newMetricData.metric
     );

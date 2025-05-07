@@ -80,7 +80,7 @@ async function startConsuming() {
     eachMessage: async ({ topic, partition, message }) => {
       try {
         const metricData = JSON.parse(message.value.toString());
-        console.log('Received metric:', metricData);
+        console.log('Received metric:', JSON.stringify(metricData).substring(0, 200) + (JSON.stringify(metricData).length > 200 ? '...' : ''));
         
         // Store latest metric and limit array size
         latestMetrics.push(metricData);
@@ -161,6 +161,7 @@ wss.on('connection', (ws) => {
         
         // Send some initial data for this subscription
         if (data.destination === '/topic/metrics' && latestMetrics.length > 0) {
+          console.log(`Sending ${latestMetrics.length} initial metrics to new client`);
           latestMetrics.forEach(metric => {
             ws.send(JSON.stringify({
               destination: '/topic/metrics',
@@ -170,6 +171,7 @@ wss.on('connection', (ws) => {
         }
         
         if (data.destination === '/topic/anomalies' && latestAnomalies.length > 0) {
+          console.log(`Sending ${latestAnomalies.length} initial anomalies to new client`);
           latestAnomalies.forEach(anomaly => {
             ws.send(JSON.stringify({
               destination: '/topic/anomalies',
@@ -179,6 +181,7 @@ wss.on('connection', (ws) => {
         }
         
         if (data.destination === '/topic/service-health' && Object.keys(serviceHealth).length > 0) {
+          console.log(`Sending ${Object.keys(serviceHealth).length} service health entries to new client`);
           Object.values(serviceHealth).forEach(health => {
             ws.send(JSON.stringify({
               destination: '/topic/service-health',
@@ -213,11 +216,16 @@ function broadcast(topic, message) {
     body: messageStr
   });
   
+  console.log(`Broadcasting to ${topic}: ${messageStr.substring(0, 100)}${messageStr.length > 100 ? '...' : ''}`);
+  
+  let clientCount = 0;
   clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(payload);
+      clientCount++;
     }
   });
+  console.log(`Message sent to ${clientCount} clients`);
 }
 
 // Root path handler
