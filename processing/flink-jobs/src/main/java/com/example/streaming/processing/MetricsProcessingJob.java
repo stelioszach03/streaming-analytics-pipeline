@@ -1,8 +1,10 @@
 package com.example.streaming.processing;
 
-import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
+import org.apache.flink.api.common.time.Time;
 import org.apache.flink.connector.base.DeliveryGuarantee;
 import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
 import org.apache.flink.connector.kafka.sink.KafkaSink;
@@ -37,6 +39,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class MetricsProcessingJob {
     private static final Logger LOG = LoggerFactory.getLogger(MetricsProcessingJob.class);
@@ -48,8 +51,18 @@ public class MetricsProcessingJob {
         // Set up the execution environment
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         
+        // Configure restart strategy for job failures
+        env.getConfig().setRestartStrategy(RestartStrategies.fixedDelayRestart(
+                3,  // Number of restart attempts
+                Time.of(10, TimeUnit.SECONDS) // Delay between restarts
+        ));
+        
+        // Enable checkpointing for fault tolerance
+        env.enableCheckpointing(60000); // Checkpoint every 60 seconds
+        env.getConfig().setUseSnapshotCompression(true);
+        
         // Configure Kafka source
-        String bootstrapServers = System.getenv().getOrDefault("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092");
+        String bootstrapServers = System.getenv().getOrDefault("KAFKA_BOOTSTRAP_SERVERS", "kafka:9093");
         String sourceTopic = System.getenv().getOrDefault("KAFKA_SOURCE_TOPIC", "metrics-data");
         String sinkTopic = System.getenv().getOrDefault("KAFKA_SINK_TOPIC", "processed-metrics");
         String alertsTopic = System.getenv().getOrDefault("KAFKA_ALERTS_TOPIC", "alerts");
@@ -91,7 +104,7 @@ public class MetricsProcessingJob {
         // Read from Kafka
         DataStream<String> inputStream = env.fromSource(
                 source,
-                WatermarkStrategy.<String>forBoundedOutOfOrderness(Duration.ofSeconds(5))
+                org.apache.flink.api.common.eventtime.WatermarkStrategy.<String>forBoundedOutOfOrderness(Duration.ofSeconds(5))
                         .withTimestampAssigner((event, timestamp) -> {
                             JSONObject jsonEvent = new JSONObject(event);
                             return jsonEvent.getLong("timestamp");
@@ -126,7 +139,7 @@ public class MetricsProcessingJob {
         // Window operations for aggregations (every minute)
         DataStream<AggregatedMetric> windowedAggregations = metricStream
                 .keyBy(event -> event.getService() + "-" + event.getMetric())
-                .window(TumblingEventTimeWindows.of(Time.minutes(1)))
+                .window(TumblingEventTimeWindows.of(org.apache.flink.streaming.api.windowing.time.Time.minutes(1)))
                 .process(new MetricAggregator());
         
         // Convert back to JSON for Kafka sink

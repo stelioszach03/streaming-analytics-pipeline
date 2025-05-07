@@ -1,3 +1,10 @@
+version: '3'
+
+# Add explicit network configuration
+networks:
+  streaming-net:
+    driver: bridge
+
 services:
   # ===== Infrastructure Services =====
   zookeeper:
@@ -8,6 +15,8 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - streaming-net
     healthcheck:
       test: echo srvr | nc zookeeper 2181 || exit 1
       interval: 10s
@@ -31,10 +40,15 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      # Διόρθωση προβλήματος μεγέθους μηνύματος
-      KAFKA_SOCKET_REQUEST_MAX_BYTES: 504857600
-      KAFKA_MESSAGE_MAX_BYTES: 104857600
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 104857600
+      # Fix for message size issue - increasing to 1GB
+      KAFKA_MESSAGE_MAX_BYTES: 1073741824
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 1073741824
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: 1073741824
+      # Added for consumer and producer
+      KAFKA_CONSUMER_MAX_PARTITION_FETCH_BYTES: 1073741824
+      KAFKA_PRODUCER_MAX_REQUEST_SIZE: 1073741824
+    networks:
+      - streaming-net
     healthcheck:
       test: kafka-topics --bootstrap-server kafka:9093 --list || exit 1
       interval: 10s
@@ -48,6 +62,8 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+    networks:
+      - streaming-net
     command: >
       bash -c "
         echo 'Waiting for Kafka to be available...'
@@ -72,6 +88,8 @@ services:
       - "9300:9300"
     volumes:
       - esdata:/usr/share/elasticsearch/data
+    networks:
+      - streaming-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
       interval: 30s
@@ -90,6 +108,8 @@ services:
       CASSANDRA_CLUSTER_NAME: MetricsCluster
     volumes:
       - ./storage/cassandra/schema/schema.cql:/schema.cql
+    networks:
+      - streaming-net
     healthcheck:
       test: cqlsh -e "describe keyspaces" || exit 1
       interval: 30s
@@ -103,6 +123,8 @@ services:
     depends_on:
       cassandra:
         condition: service_healthy
+    networks:
+      - streaming-net
     command: >
       bash -c "
         echo 'Waiting for Cassandra to be ready...'
@@ -129,6 +151,8 @@ services:
       KAFKA_TOPIC: metrics-data
       SERVICE_NAME: system-monitor
       REGION: us-east
+    networks:
+      - streaming-net
 
   # ===== Processing Services =====
   flink-jobmanager:
@@ -146,6 +170,12 @@ services:
         state.checkpoints.dir: file:///tmp/flink-checkpoints
         heartbeat.interval: 1000
         heartbeat.timeout: 5000
+        jobmanager.execution.failover-strategy: region
+        restart-strategy: fixed-delay
+        restart-strategy.fixed-delay.attempts: 3
+        restart-strategy.fixed-delay.delay: 10s
+    networks:
+      - streaming-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/overview"]
       interval: 10s
@@ -170,6 +200,8 @@ services:
         state.checkpoints.dir: file:///tmp/flink-checkpoints
         heartbeat.interval: 1000
         heartbeat.timeout: 5000
+    networks:
+      - streaming-net
 
   flink-metrics-job:
     build:
@@ -191,6 +223,9 @@ services:
       KAFKA_ALERTS_TOPIC: alerts
       ELASTICSEARCH_HOST: elasticsearch
       ELASTICSEARCH_PORT: 9200
+    networks:
+      - streaming-net
+    restart: on-failure
 
   # ===== API Gateway =====
   api-gateway:
@@ -205,6 +240,8 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+    networks:
+      - streaming-net
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
       interval: 20s
@@ -224,6 +261,8 @@ services:
     depends_on:
       api-gateway:
         condition: service_healthy
+    networks:
+      - streaming-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 30s
@@ -248,8 +287,9 @@ services:
     depends_on:
       api-gateway:
         condition: service_healthy
+    networks:
+      - streaming-net
 
-  # Προσθήκη του alertmanager - διορθωμένη έκδοση εικόνας
   alertmanager:
     image: prom/alertmanager:latest
     container_name: alertmanager
@@ -261,6 +301,8 @@ services:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
     restart: unless-stopped
+    networks:
+      - streaming-net
 
   grafana:
     image: grafana/grafana:9.4.7
@@ -276,6 +318,8 @@ services:
     depends_on:
       prometheus:
         condition: service_started
+    networks:
+      - streaming-net
 
 volumes:
   esdata:
